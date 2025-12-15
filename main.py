@@ -23,7 +23,7 @@ load_dotenv()
 # step 1: construct request URL
 
 # 1a) prompt end-user to input the series ID of choice
-SeriesID = str(input("Enter the SeriesID for the dataset --> "))
+SeriesID = "DGS10" # str(input("Enter the SeriesID for the dataset --> "))
 
 # 1b) read the API key from the .env file
 API_KEY = os.getenv("API_KEY")
@@ -55,4 +55,8 @@ raw_json = response.json()
 
 # 2d) print the get url and response for validation
 print(raw_json.keys())
-print(raw_json)
+
+json_limit = 3
+observations = raw_json["observations"]
+preview = observations[:json_limit]
+print(preview)
