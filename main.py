@@ -113,7 +113,8 @@ for obs in observations:
 
 number_of_cleaned_observations = len(cleaned_observations)
 print("Of the original " + str(number_of_observations) + " data points, "
-       + str(number_of_cleaned_observations) + " passed the data validation check meaning that "+ str(number_of_observations - number_of_cleaned_observations) + " were invalid")
+       + str(number_of_cleaned_observations) + " passed the data validation check meaning that "
+       + str(number_of_observations - number_of_cleaned_observations) + " were invalid")
 
 
 # step 4: load clean data to pandas df
@@ -127,10 +128,6 @@ df = pd.DataFrame(cleaned_observations)
 # len(df)
 
 # 4c) print sample df data
-
+print(df.head(10))
 
 # step 5: plot data points from pandas df
-
-# 5a) 
-
-# 5b)
