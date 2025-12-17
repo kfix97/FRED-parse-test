@@ -1,4 +1,4 @@
-#---------------------------------------REFACTOR to use functions---------------------------------------#
+#---------------------------------------REFACTORED to use functions---------------------------------------#
 
 # steps:
 # 0) environment setup and import libraries
