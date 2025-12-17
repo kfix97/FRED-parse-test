@@ -5,4 +5,3 @@ import pandas
 import math
 import fred_data_call
 
-print(fred_data_call.df.head(2))
