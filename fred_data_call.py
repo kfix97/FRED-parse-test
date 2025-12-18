@@ -115,6 +115,7 @@ def get_fred_series_df(series_id): # function for use in other places to build t
         df = df.sort_values("date") # sort the data by date so that it's ready to go
         print("Successfully created the df with " + str(number_of_observations) + " rows!")
         #print_validations(raw_json, cleaned_observations, df) # print data validations along the way
+        return df
     else:
         print("No rows returned in the dataset")
 
