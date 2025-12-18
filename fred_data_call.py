@@ -22,7 +22,7 @@ import pandas as pd
 # constants
 BASE_URL = str("https://api.stlouisfed.org/fred")
 endpoint = "/series/observations"
-# SeriesID = "DGS10" # str(input("Enter the SeriesID for the dataset --> ")) # 1a) prompt end-user to input the series ID of choice
+# series_id = "DGS10" # str(input("Enter the SeriesID for the dataset --> ")) # 1a) prompt end-user to input the series id of choice
 
 # functions
 def get_api_key():
@@ -34,10 +34,10 @@ def get_api_key():
         raise RuntimeError("API_KEY not found. Check your .env file.")
     return API_KEY
 
-def fetch_fred_json(series_id, api_key):
+def fetch_fred_json(series_id, API_KEY):
     # 1c) define URL components
     params = {
-        "series_id" : SeriesID,                # the specified dataset - required
+        "series_id" : series_id,                # the specified dataset - required
         "api_key" : API_KEY,                   # the FRED API key - required
         "file_type" : "json"                   # json format vs xml - required
         #,"sort_order" : "desc"                # sorting the data descending by observation_date - optional
@@ -88,25 +88,24 @@ def parse_observations(observations):
         cleaned_observations.append(clean_row) # append to the list
     return cleaned_observations
 
-def print_validations(raw_json, cleaned_observation, df, json_limit=1):
-    # 2e) print a preview of the response
-    json_limit = 1
-    observations = raw_json["observations"]
-    preview = observations[:json_limit]
-    print("json preview: " + str(preview))
-    # 3b) confirm presence of the key and that the value is a list
-    number_of_cleaned_observations = len(cleaned_observations)
-    print("Of the original " + str(number_of_observations) + " data points, "
-        + str(number_of_cleaned_observations) + " passed the data validation check meaning that "
-        + str(number_of_observations - number_of_cleaned_observations) + " were invalid")
-    # 4b) print sample df data
-    print(df.head(10))
+# def print_validations(raw_json, cleaned_observation, df, json_limit=1):
+#     # 2e) print a preview of the response
+#     json_limit = 1
+#     observations = raw_json["observations"]
+#     preview = observations[:json_limit]
+#     print("json preview: " + str(preview))
+#     # 3b) confirm presence of the key and that the value is a list
+#     number_of_cleaned_observations = len(cleaned_observations)
+#     print("Of the original " + str(number_of_observations) + " data points, "
+#         + str(number_of_cleaned_observations) + " passed the data validation check meaning that "
+#         + str(number_of_observations - number_of_cleaned_observations) + " were invalid")
+#     # 4b) print sample df data
+#     print(df.head(10))
 
-# enable the main guard to call the functions and grab the data for use in other places
-if __name__ == "__main__":
-    SeriesID = "DGS10"
+def get_fred_series_df(series_id): # function for use in other places to build the df
+    # series_id = "DGS10" # hard coding as 10yr yield for now
     API_KEY = get_api_key() # get api key from .env file
-    raw_json = fetch_fred_json(SeriesID, API_KEY) # get the fred data
+    raw_json = fetch_fred_json(series_id, API_KEY) # get the fred data
     observations = raw_json.get("observations",[]) # get the data points from the raw data
     number_of_observations = len(observations) # count the data points
     if number_of_observations > 0: # check that there are data points, if so proceed
@@ -118,3 +117,8 @@ if __name__ == "__main__":
         #print_validations(raw_json, cleaned_observations, df) # print data validations along the way
     else:
         print("No rows returned in the dataset")
+
+# enable the main guard to call the functions and validate that the file runs successfully here
+if __name__ == "__main__":
+    df = get_fred_series_df("DGS10")
+    print(df.head())
