@@ -140,7 +140,11 @@ def save_cache(df: pd.DataFrame, series_id: str, csv_path: Path, meta_path: Path
     if df["date"].isna().any() or df["value"].isna().any():
         raise ValueError("Refusing to cache DF with missing date/value")
 
-    max_obs_date = df["date"].max().date().isoformat()
+    # normalize to pandas datetime to safely support both Timestamp and datetime.date values
+    max_obs_dt = pd.to_datetime(df["date"]).max()
+    if pd.isna(max_obs_dt):
+        raise ValueError("Refusing to cache DF with invalid max observation date")
+    max_obs_date = max_obs_dt.date().isoformat()
     meta = {
         "series_id": series_id,
         "pulled_at": datetime.now().isoformat(timespec="seconds"),
