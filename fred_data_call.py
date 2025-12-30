@@ -18,6 +18,10 @@ import os
 from datetime import date
 from datetime import datetime
 import pandas as pd
+import json
+import time
+import warnings
+from pathlib import Path
 
 # constants
 BASE_URL = str("https://api.stlouisfed.org/fred")
@@ -102,22 +106,110 @@ def parse_observations(observations):
 #     # 4b) print sample df data
 #     print(df.head(10))
 
-def get_fred_series_df(series_id): # function for use in other places to build the df
-    # series_id = "DGS10" # hard coding as 10yr yield for now
-    API_KEY = get_api_key() # get api key from .env file
-    raw_json = fetch_fred_json(series_id, API_KEY) # get the fred data
-    observations = raw_json.get("observations",[]) # get the data points from the raw data
-    number_of_observations = len(observations) # count the data points
-    if number_of_observations > 0: # check that there are data points, if so proceed
-        cleaned_observations = parse_observations(observations) # clean fred data
-        # step 4: load clean data to pandas df
-        df = pd.DataFrame(cleaned_observations) # 4a) load data to df
-        df = df.sort_values("date") # sort the data by date so that it's ready to go
-        print("Successfully created the df with " + str(number_of_observations) + " rows!")
-        #print_validations(raw_json, cleaned_observations, df) # print data validations along the way
+def load_cache_meta(meta_path: Path):
+    if not meta_path.exists():
+        return None
+    with meta_path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+def is_cache_fresh(meta: dict, ttl_seconds: int) -> bool:
+    pulled_at = meta.get("pulled_at")
+    if not pulled_at:
+        return False
+    pulled_dt = datetime.fromisoformat(pulled_at)
+    age_seconds = (datetime.now() - pulled_dt).total_seconds()
+    return age_seconds <= ttl_seconds
+
+def load_cache_df(csv_path: Path) -> pd.DataFrame:
+    df = pd.read_csv(csv_path, parse_dates=["date"])
+    if df.empty:
+        raise ValueError("Cache DF is empty")
+    if "date" not in df.columns or "value" not in df.columns:
+        raise ValueError("Cache DF missing required columns")
+    if df["date"].isna().any() or df["value"].isna().any():
+        raise ValueError("Cache DF contains missing date/value")
+    df = df.sort_values("date").reset_index(drop=True)
+    return df
+
+def save_cache(df: pd.DataFrame, series_id: str, csv_path: Path, meta_path: Path):
+    # enforce invariants before writing
+    if df.empty:
+        raise ValueError("Refusing to cache empty DataFrame")
+    if "date" not in df.columns or "value" not in df.columns:
+        raise ValueError("Refusing to cache DF missing required columns")
+    if df["date"].isna().any() or df["value"].isna().any():
+        raise ValueError("Refusing to cache DF with missing date/value")
+
+    # normalize to pandas datetime to safely support both Timestamp and datetime.date values
+    max_obs_dt = pd.to_datetime(df["date"]).max()
+    if pd.isna(max_obs_dt):
+        raise ValueError("Refusing to cache DF with invalid max observation date")
+    max_obs_date = max_obs_dt.date().isoformat()
+    meta = {
+        "series_id": series_id,
+        "pulled_at": datetime.now().isoformat(timespec="seconds"),
+        "max_observation_date": max_obs_date,
+        "row_count": int(len(df)),
+    }
+
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tmp_csv = csv_path.with_suffix(".csv.tmp")
+    tmp_meta = meta_path.with_suffix(".json.tmp")
+
+    df.to_csv(tmp_csv, index=False)
+    with tmp_meta.open("w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2)
+
+    tmp_csv.replace(csv_path)
+    tmp_meta.replace(meta_path)
+
+def get_fred_series_df(series_id, cache_ttl_seconds=86400, cache_dir="cache"):
+    cache_dir_path = Path(cache_dir)
+    csv_path = cache_dir_path / f"fred_{series_id}.csv"
+    meta_path = cache_dir_path / f"fred_{series_id}_meta.json"
+
+    # 1) try fresh cache
+    meta = load_cache_meta(meta_path)
+    if meta and csv_path.exists() and is_cache_fresh(meta, cache_ttl_seconds):
+        return load_cache_df(csv_path)
+
+    # 2) try API
+    try:
+        api_key = get_api_key()
+        raw_json = fetch_fred_json(series_id, api_key)
+        observations = raw_json.get("observations", [])
+        if not isinstance(observations, list) or len(observations) == 0:
+            raise RuntimeError("No observations returned")
+
+        cleaned = parse_observations(observations)
+        if len(cleaned) == 0:
+            raise RuntimeError("All observations were filtered out during parsing")
+
+        df = pd.DataFrame(cleaned).sort_values("date").reset_index(drop=True)
+
+        save_cache(df, series_id, csv_path, meta_path)
         return df
-    else:
-        print("No rows returned in the dataset")
+
+    except Exception as api_err:
+        # 3) API failed, try stale cache
+        try:
+            if csv_path.exists() and meta:
+                df = load_cache_df(csv_path)
+                warnings.warn(
+                    f"Using stale cached data for {series_id}. "
+                    f"Pulled at {meta.get('pulled_at')}, "
+                    f"max observation date {meta.get('max_observation_date')}. "
+                    f"API error: {api_err}"
+                )
+                return df
+        except Exception as cache_err:
+            raise RuntimeError(
+                f"Cache is corrupted/unusable AND API request failed. "
+                f"API error: {api_err}. Cache error: {cache_err}."
+            ) from api_err
+
+        raise
 
 # enable the main guard to call the functions and validate that the file runs successfully here
 if __name__ == "__main__":
