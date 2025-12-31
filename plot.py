@@ -1,5 +1,9 @@
 from pathlib import Path
 
+import matplotlib
+
+# Force a headless backend so plots can be saved without a display.
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from fred_data_call import get_fred_series_df
