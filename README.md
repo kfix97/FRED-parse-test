@@ -7,7 +7,7 @@ Small practice project for pulling a FRED series, validating the response, shapi
 - Parses `observations` into `{date: datetime.date, value: float}` rows while dropping null or invalid points.
 - Builds a sorted pandas DataFrame as the contract for downstream use.
 - Caches the cleaned DataFrame plus metadata to `cache/` with TTL checks and safe writes.
-- Provides a simple matplotlib scatter plot of the cached/fetched data.
+- Provides a simple matplotlib scatter plot of the cached/fetched data and saves it to `images/dgs10_yield.png`.
 
 ## Data flow
 FRED API → raw JSON → validated observations → cleaned rows → pandas DataFrame → (cache | plot)
@@ -21,12 +21,15 @@ FRED API → raw JSON → validated observations → cleaned rows → pandas Dat
 1) `pip3 install requests pandas python-dotenv matplotlib`
 2) Create `.env` with `API_KEY=your_fred_api_key_here`
 3) Build or refresh data: `python3 fred_data_call.py` (writes `cache/fred_<series>.csv` and metadata)
-4) Plot the default series: `python3 plot.py` (uses cache when valid, otherwise fetches)
+4) Plot the default series: `python3 plot.py` (uses cache when valid, otherwise fetches; saves chart to `images/dgs10_yield.png`)
 
 ## Caching notes
 - Cache TTL defaults to 24h; stale cache is used if the API fails but files validate.
 - Cache writes are atomic and refuse empty/invalid DataFrames.
 - Metadata tracks series id, pull time, row count, and max observation date.
+
+## Plot preview
+![10-year treasury yield scatter](images/dgs10_yield.png)
 
 ## Next steps
 - Explore other FRED series IDs and compare plots.
