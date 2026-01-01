@@ -118,6 +118,32 @@ def test_save_cache_rejects_empty_df(tmp_path):
         save_cache(pd.DataFrame(columns=["date", "value"]), "SER", csv_path, meta_path)
 
 
+def test_save_cache_does_not_leave_partials_on_write_failure(monkeypatch, tmp_path):
+    df = pd.DataFrame(
+        {
+            "date": [date(2024, 1, 1)],
+            "value": [1.0],
+        }
+    )
+    csv_path = tmp_path / "fred_SER.csv"
+    meta_path = tmp_path / "fred_SER_meta.json"
+    tmp_csv = csv_path.with_suffix(".csv.tmp")
+    tmp_meta = meta_path.with_suffix(".json.tmp")
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(df, "to_csv", boom)
+
+    with pytest.raises(RuntimeError, match="disk full"):
+        save_cache(df, "SER", csv_path, meta_path)
+
+    assert not csv_path.exists()
+    assert not meta_path.exists()
+    assert not tmp_csv.exists()
+    assert not tmp_meta.exists()
+
+
 def test_get_fred_series_df_uses_fresh_cache(monkeypatch, tmp_path):
     csv_path = tmp_path / "fred_SER.csv"
     meta_path = tmp_path / "fred_SER_meta.json"
