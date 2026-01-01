@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
+from freezegun import freeze_time
 
 # Support pytest discovery and direct file runs by ensuring repo root is importable.
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +41,7 @@ def test_parse_observations_raises_on_bad_date():
         parse_observations(observations)
 
 
+@freeze_time("2024-01-10 12:00:00")
 def test_is_cache_fresh_respects_ttl():
     now = datetime.now()
     meta = {"pulled_at": (now - timedelta(minutes=10)).isoformat(timespec="seconds")}
@@ -144,6 +146,7 @@ def test_save_cache_does_not_leave_partials_on_write_failure(monkeypatch, tmp_pa
     assert not tmp_meta.exists()
 
 
+@freeze_time("2024-01-10 12:00:00")
 def test_get_fred_series_df_uses_fresh_cache(monkeypatch, tmp_path):
     csv_path = tmp_path / "fred_SER.csv"
     meta_path = tmp_path / "fred_SER_meta.json"
@@ -177,6 +180,7 @@ def test_get_fred_series_df_uses_fresh_cache(monkeypatch, tmp_path):
     assert fetch_calls["count"] == 0
 
 
+@freeze_time("2024-01-10 12:00:00")
 def test_get_fred_series_df_fetches_and_caches(monkeypatch, tmp_path):
     sample_json = {
         "observations": [
@@ -213,6 +217,7 @@ def test_get_fred_series_df_fetches_and_caches(monkeypatch, tmp_path):
     assert meta["max_observation_date"] == "2024-01-03"
 
 
+@freeze_time("2024-01-10 12:00:00")
 def test_get_fred_series_df_falls_back_to_stale_cache(monkeypatch, tmp_path):
     csv_path = tmp_path / "fred_SER.csv"
     meta_path = tmp_path / "fred_SER_meta.json"
@@ -246,6 +251,7 @@ def test_get_fred_series_df_falls_back_to_stale_cache(monkeypatch, tmp_path):
     assert_frame_equal(result.reset_index(drop=True), load_cache_df(csv_path))
 
 
+@freeze_time("2024-01-10 12:00:00")
 def test_get_fred_series_df_raises_on_both_api_and_cache_failure(monkeypatch, tmp_path):
     csv_path = tmp_path / "fred_SER.csv"
     meta_path = tmp_path / "fred_SER_meta.json"
