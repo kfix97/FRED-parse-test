@@ -34,6 +34,12 @@ def test_parse_observations_filters_and_coerces():
     assert cleaned == [{"date": date(2024, 1, 1), "value": 3.5}]
 
 
+def test_parse_observations_raises_on_bad_date():
+    observations = [{"date": "bad-date", "value": "1.0"}]
+    with pytest.raises(ValueError):
+        parse_observations(observations)
+
+
 def test_is_cache_fresh_respects_ttl():
     now = datetime.now()
     meta = {"pulled_at": (now - timedelta(minutes=10)).isoformat(timespec="seconds")}
@@ -56,6 +62,29 @@ def test_load_cache_df_validates_and_sorts(tmp_path):
 
     assert list(loaded["date"].dt.date) == [date(2024, 1, 1), date(2024, 1, 2)]
     assert list(loaded["value"]) == [1.0, 2.0]
+
+
+@pytest.mark.parametrize(
+    "df,expected_message",
+    [
+        (pd.DataFrame(), "Cache DF is empty"),
+        (pd.DataFrame({"date": [pd.Timestamp("2024-01-01")]}), "missing required columns"),
+        (
+            pd.DataFrame({"date": [pd.NaT], "value": [1.0]}),
+            "contains missing date/value",
+        ),
+        (
+            pd.DataFrame({"date": [pd.Timestamp("2024-01-01")], "value": [pd.NA]}),
+            "contains missing date/value",
+        ),
+    ],
+)
+def test_load_cache_df_rejects_invalid(tmp_path, df, expected_message):
+    csv_path = tmp_path / "fred_SER.csv"
+    df.to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match=expected_message):
+        load_cache_df(csv_path)
 
 
 def test_save_cache_writes_files_and_meta(tmp_path):
@@ -189,3 +218,20 @@ def test_get_fred_series_df_falls_back_to_stale_cache(monkeypatch, tmp_path):
         result = get_fred_series_df("SER", cache_ttl_seconds=1, cache_dir=tmp_path)
 
     assert_frame_equal(result.reset_index(drop=True), load_cache_df(csv_path))
+
+
+def test_get_fred_series_df_raises_on_both_api_and_cache_failure(monkeypatch, tmp_path):
+    csv_path = tmp_path / "fred_SER.csv"
+    meta_path = tmp_path / "fred_SER_meta.json"
+    meta_path.write_text(json.dumps({"pulled_at": datetime.now().isoformat(timespec="seconds")}))
+    csv_path.write_text("bad csv content")
+
+    monkeypatch.setenv("API_KEY", "dummy-key")
+
+    def failing_fetch(series_id, api_key):
+        raise RuntimeError("API unavailable")
+
+    monkeypatch.setattr(fred_data_call, "fetch_fred_json", failing_fetch)
+
+    with pytest.raises(RuntimeError, match="Cache is corrupted/unusable AND API request failed"):
+        get_fred_series_df("SER", cache_ttl_seconds=1, cache_dir=tmp_path)
