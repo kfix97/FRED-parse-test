@@ -27,6 +27,8 @@ FRED API → raw JSON → validated observations → cleaned rows → pandas Dat
 - Install test deps (alongside project deps): `pip3 install -r requirements-dev.txt`
 - Run the suite: `pytest -q`
 - Tests mock the FRED API and use temp dirs, so they do not hit the network or touch the real cache/images directories.
+- Deterministic time: freezegun freezes `datetime.now()` in TTL/cache tests for stable expectations.
+- Cache invariants: tests assert invalid/missing cache data raises, stale cache fallback warns, combined API+cache failure surfaces a clear RuntimeError, and failed cache writes do not leave partial temp files.
 - CI: GitHub Actions workflow `.github/workflows/tests.yml` runs pytest on every push/PR; enable branch protection to require it to pass before merging.
 
 ## Caching notes
