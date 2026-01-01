@@ -69,7 +69,7 @@ def test_load_cache_df_validates_and_sorts(tmp_path):
 @pytest.mark.parametrize(
     "df,expected_message",
     [
-        (pd.DataFrame(), "Cache DF is empty"),
+        (pd.DataFrame(columns=["date", "value"]), "Cache DF is empty"),
         (pd.DataFrame({"date": [pd.Timestamp("2024-01-01")]}), "missing required columns"),
         (
             pd.DataFrame({"date": [pd.NaT], "value": [1.0]}),
@@ -255,7 +255,13 @@ def test_get_fred_series_df_falls_back_to_stale_cache(monkeypatch, tmp_path):
 def test_get_fred_series_df_raises_on_both_api_and_cache_failure(monkeypatch, tmp_path):
     csv_path = tmp_path / "fred_SER.csv"
     meta_path = tmp_path / "fred_SER_meta.json"
-    meta_path.write_text(json.dumps({"pulled_at": datetime.now().isoformat(timespec="seconds")}))
+    stale_meta = {
+        "series_id": "SER",
+        "pulled_at": (datetime.now() - timedelta(days=2)).isoformat(timespec="seconds"),
+        "max_observation_date": "2024-01-01",
+        "row_count": 1,
+    }
+    meta_path.write_text(json.dumps(stale_meta))
     csv_path.write_text("bad csv content")
 
     monkeypatch.setenv("API_KEY", "dummy-key")
