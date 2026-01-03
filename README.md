@@ -9,6 +9,7 @@ Small practice project for pulling a FRED series, validating the response, shapi
 - Caches the cleaned DataFrame plus metadata to `cache/` with TTL checks and safe writes.
 - Provides a simple matplotlib scatter plot of the cached/fetched data and saves it to `images/dgs10_yield.png`.
 - Pulls Treasury Fiscal Data API `debt_subject_to_limit` records, normalizes them to `{date, debt_subject_to_limit, ...}`, and caches them for future joins with the FRED series.
+- Merges FRED yields with Treasury debt by date and plots them with dual y-axes (`images/yield_vs_debt.png`).
 
 ## Data flow
 FRED API → raw JSON → validated observations → cleaned rows → pandas DataFrame → (cache | plot)
@@ -24,7 +25,7 @@ FRED API → raw JSON → validated observations → cleaned rows → pandas Dat
 2) Create `.env` with `API_KEY=your_fred_api_key_here` (and optionally `FISCAL_API_KEY` if Treasury starts requiring one)
 3) Build or refresh FRED data: `python3 fred_data_call.py` (writes `cache/fred_<series>.csv` and metadata)
 4) Build or refresh Treasury debt data: `python3 fiscal_data_call.py` (writes `cache/treasury_debt_subject_to_limit.csv` and metadata)
-5) Plot the default series: `python3 plot.py` (uses cache when valid, otherwise fetches; saves chart to `images/dgs10_yield.png`)
+5) Plot the combined yield vs debt chart: `python3 plot.py` (uses cache when valid, otherwise fetches; saves chart to `images/yield_vs_debt.png`)
 
 ## Unit testing
 - Install test deps (alongside project deps): `pip3 install -r requirements-dev.txt`

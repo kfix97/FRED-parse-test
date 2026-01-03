@@ -3,6 +3,7 @@ import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from freezegun import freeze_time
@@ -79,8 +80,8 @@ def test_get_debt_subject_to_limit_df_fetches_and_caches(monkeypatch, tmp_path):
         {
             "date": [date(2024, 1, 1), date(2024, 1, 2)],
             "debt_subject_to_limit": [34000.0, 34100.0],
-            "statutory_debt_limit": [35000.0, pd.NA],
-            "total_public_debt_outstanding": [pd.NA, 33900.0],
+            "statutory_debt_limit": [35000.0, np.nan],
+            "total_public_debt_outstanding": [np.nan, 33900.0],
         }
     )
 

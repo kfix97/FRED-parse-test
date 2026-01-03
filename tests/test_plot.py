@@ -10,19 +10,21 @@ if str(ROOT) not in sys.path:
 
 import plot
 
+
 def test_plot_main_saves_chart(monkeypatch, tmp_path):
     fake_df = pd.DataFrame(
         {
             "date": pd.date_range("2024-01-01", periods=3, freq="D"),
-            "value": [1.0, 1.2, 1.4],
+            "yield_percent": [1.0, 1.2, 1.4],
+            "debt_subject_to_limit": [34000, 34100, 34200],
         }
     )
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(plot, "get_fred_series_df", lambda series_id: fake_df)
+    monkeypatch.setattr(plot, "build_combined_df", lambda: fake_df)
 
     plot.main()
 
-    output_path = Path("images") / "dgs10_yield.png"
+    output_path = Path("images") / "yield_vs_debt.png"
     assert output_path.exists()
     assert output_path.stat().st_size > 0

@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+from urllib.parse import urljoin
 import warnings
 
 import pandas as pd
@@ -31,7 +32,8 @@ def fetch_debt_subject_to_limit(api_key=None, page_size=1000, max_pages=100):
     if api_key:
         headers["X-API-KEY"] = api_key
 
-    url = f"{FISCAL_BASE_URL}{DEBT_ENDPOINT}"
+    base_url = f"{FISCAL_BASE_URL}{DEBT_ENDPOINT}"
+    url = base_url
     params = {"page[size]": page_size}
     records = []
     page = 1
@@ -59,7 +61,7 @@ def fetch_debt_subject_to_limit(api_key=None, page_size=1000, max_pages=100):
         if page > max_pages:
             raise RuntimeError("Pagination exceeded max_pages when fetching Treasury data")
 
-        url = next_url
+        url = urljoin(base_url, next_url)
         params = None  # next_url already includes query params
 
     return records
