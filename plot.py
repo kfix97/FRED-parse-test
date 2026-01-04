@@ -33,6 +33,10 @@ def build_combined_df(series_id="DGS10"):
 def main():
     df = build_combined_df()
 
+    if "debt_subject_to_limit_trillions" not in df.columns:
+        df = df.copy()
+        df["debt_subject_to_limit_trillions"] = df["debt_subject_to_limit"] / 1_000_000
+
     output_dir = Path("images")
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / "yield_vs_debt.png"
@@ -46,11 +50,11 @@ def main():
 
     ax_right.plot(
         df["date"],
-        df["debt_subject_to_limit"],
+        df["debt_subject_to_limit_trillions"],
         color="tab:red",
-        label="Debt Subject to Limit",
+        label="Debt Subject to Limit (T USD)",
     )
-    ax_right.set_ylabel("Debt Subject to Limit (USD)", color="tab:red")
+    ax_right.set_ylabel("Debt Subject to Limit (Trillions USD)", color="tab:red")
     ax_right.tick_params(axis="y", labelcolor="tab:red")
 
     ax_left.set_title("10-year Treasury Yield vs Debt Subject to Limit")

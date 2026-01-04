@@ -17,6 +17,7 @@ def test_plot_main_saves_chart(monkeypatch, tmp_path):
             "date": pd.date_range("2024-01-01", periods=3, freq="D"),
             "yield_percent": [1.0, 1.2, 1.4],
             "debt_subject_to_limit": [34000, 34100, 34200],
+            # Intentionally omit trillions column to exercise backfill in plot.main
         }
     )
 

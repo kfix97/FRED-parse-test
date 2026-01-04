@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 FISCAL_BASE_URL = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service"
 DEBT_ENDPOINT = "/v1/accounting/dts/debt_subject_to_limit"
+DEBT_TOTAL_CATEGORY = "Debt Subject to Limit"
 
 
 def get_fiscal_api_key(env_var="FISCAL_API_KEY"):
@@ -87,7 +88,11 @@ def _get_field(row: dict, aliases):
 
 
 def parse_debt_subject_to_limit(records):
-    """Normalize Treasury debt rows to {date, debt_subject_to_limit, ...} dicts."""
+    """Normalize Treasury debt rows to {date, debt_subject_to_limit, ...} dicts.
+
+    The endpoint returns multiple categories per date; we keep only the total
+    category (Debt Subject to Limit) to avoid stacking components and adjustments.
+    """
     cleaned = []
     for row in records:
         raw_date = row.get("record_date")
@@ -99,6 +104,10 @@ def parse_debt_subject_to_limit(records):
                 "close_today_bal",  # present in table III-C
             ],
         )
+        debt_category = (row.get("debt_catg") or "").strip()
+
+        if debt_category and debt_category != DEBT_TOTAL_CATEGORY:
+            continue  # keep only the consolidated total row per date
 
         if not raw_date or raw_debt in (None, "", "null"):
             continue
@@ -167,6 +176,11 @@ def load_debt_cache_df(csv_path: Path) -> pd.DataFrame:
         raise ValueError("Cache DF missing required columns")
     if df["date"].isna().any() or df["debt_subject_to_limit"].isna().any():
         raise ValueError("Cache DF contains missing date/debt_subject_to_limit")
+
+    # Backfill derived column for older cache files.
+    if "debt_subject_to_limit_trillions" not in df.columns:
+        df["debt_subject_to_limit_trillions"] = df["debt_subject_to_limit"] / 1_000_000
+
     df = df.sort_values("date").reset_index(drop=True)
     return df
 
@@ -178,6 +192,10 @@ def save_debt_cache(df: pd.DataFrame, csv_path: Path, meta_path: Path):
         raise ValueError("Refusing to cache DF missing required columns")
     if df["date"].isna().any() or df["debt_subject_to_limit"].isna().any():
         raise ValueError("Refusing to cache DF with missing date/debt_subject_to_limit")
+
+    if "debt_subject_to_limit_trillions" not in df.columns:
+        df = df.copy()
+        df["debt_subject_to_limit_trillions"] = df["debt_subject_to_limit"] / 1_000_000
 
     max_dt = pd.to_datetime(df["date"]).max()
     if pd.isna(max_dt):
@@ -228,7 +246,7 @@ def get_debt_subject_to_limit_df(cache_ttl_seconds=86400, cache_dir="cache", pag
 
         df = pd.DataFrame(cleaned)
         if df.duplicated(subset="date").any():
-            agg_map = {"debt_subject_to_limit": "sum"}
+            agg_map = {"debt_subject_to_limit": "max"}
             if "statutory_debt_limit" in df.columns:
                 agg_map["statutory_debt_limit"] = "max"
             if "total_public_debt_outstanding" in df.columns:
@@ -237,6 +255,9 @@ def get_debt_subject_to_limit_df(cache_ttl_seconds=86400, cache_dir="cache", pag
                 if col in df.columns:
                     agg_map[col] = "max"
             df = df.groupby("date", as_index=False).agg(agg_map)
+
+        # Values are reported in millions of USD; provide a trillions helper column for plotting.
+        df["debt_subject_to_limit_trillions"] = df["debt_subject_to_limit"] / 1_000_000
 
         df = df.sort_values("date").reset_index(drop=True)
 

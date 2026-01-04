@@ -8,8 +8,8 @@ Small practice project for pulling a FRED series, validating the response, shapi
 - Builds a sorted pandas DataFrame as the contract for downstream use.
 - Caches the cleaned DataFrame plus metadata to `cache/` with TTL checks and safe writes.
 - Provides a simple matplotlib scatter plot of the cached/fetched data and saves it to `images/dgs10_yield.png`.
-- Pulls Treasury Fiscal Data API `debt_subject_to_limit` records, normalizes them to `{date, debt_subject_to_limit, ...}`, and caches them for future joins with the FRED series.
-- Merges FRED yields with Treasury debt by date and plots them with dual y-axes (`images/yield_vs_debt.png`).
+- Pulls Treasury Fiscal Data API `debt_subject_to_limit` records (filtering to the total category only), normalizes them to `{date, debt_subject_to_limit, debt_subject_to_limit_trillions, ...}`, and caches them for future joins with the FRED series.
+- Merges FRED yields with Treasury debt by date and plots them with dual y-axes (`images/yield_vs_debt.png`), showing debt in trillions of USD.
 
 ## Data flow
 FRED API → raw JSON → validated observations → cleaned rows → pandas DataFrame → (cache | plot)
