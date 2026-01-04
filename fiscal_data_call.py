@@ -61,7 +61,12 @@ def fetch_debt_subject_to_limit(api_key=None, page_size=1000, max_pages=100):
         if page > max_pages:
             raise RuntimeError("Pagination exceeded max_pages when fetching Treasury data")
 
-        url = urljoin(base_url, next_url)
+        if next_url.startswith("&"):
+            url = f"{base_url}?{next_url.lstrip('&')}"
+        elif next_url.startswith("?"):
+            url = f"{base_url}{next_url}"
+        else:
+            url = urljoin(base_url, next_url)
         params = None  # next_url already includes query params
 
     return records
@@ -72,12 +77,28 @@ def _to_number(value):
     return float(str(value).replace(",", ""))
 
 
+def _get_field(row: dict, aliases):
+    """Return the first non-empty field from a list of possible aliases."""
+    for key in aliases:
+        val = row.get(key)
+        if val not in (None, "", "null"):
+            return val
+    return None
+
+
 def parse_debt_subject_to_limit(records):
     """Normalize Treasury debt rows to {date, debt_subject_to_limit, ...} dicts."""
     cleaned = []
     for row in records:
         raw_date = row.get("record_date")
-        raw_debt = row.get("debt_subject_to_limit")
+        raw_debt = _get_field(
+            row,
+            [
+                "debt_subject_to_limit",
+                "debt_subject_to_limit_amt",
+                "close_today_bal",  # present in table III-C
+            ],
+        )
 
         if not raw_date or raw_debt in (None, "", "null"):
             continue
@@ -95,12 +116,25 @@ def parse_debt_subject_to_limit(records):
 
         record = {"date": parsed_date, "debt_subject_to_limit": debt_value}
 
-        for optional_field in ("statutory_debt_limit", "total_public_debt_outstanding"):
-            raw_val = row.get(optional_field)
+        optional_fields = {
+            "statutory_debt_limit": [
+                "statutory_debt_limit",
+                "statutory_debt_limit_amt",
+            ],
+            "total_public_debt_outstanding": [
+                "total_public_debt_outstanding",
+                "total_public_debt_outstanding_amt",
+            ],
+            "open_today_bal": ["open_today_bal"],
+            "open_month_bal": ["open_month_bal"],
+            "open_fiscal_year_bal": ["open_fiscal_year_bal"],
+        }
+        for normalized, aliases in optional_fields.items():
+            raw_val = _get_field(row, aliases)
             if raw_val in (None, "", "null"):
                 continue
             try:
-                record[optional_field] = _to_number(raw_val)
+                record[normalized] = _to_number(raw_val)
             except (TypeError, ValueError):
                 continue
 
@@ -186,9 +220,25 @@ def get_debt_subject_to_limit_df(cache_ttl_seconds=86400, cache_dir="cache", pag
 
         cleaned = parse_debt_subject_to_limit(raw_records)
         if len(cleaned) == 0:
-            raise RuntimeError("All Treasury records were filtered out during parsing")
+            sample = raw_records[:2]
+            raise RuntimeError(
+                "All Treasury records were filtered out during parsing. "
+                f"Sample payload: {sample}"
+            )
 
-        df = pd.DataFrame(cleaned).sort_values("date").reset_index(drop=True)
+        df = pd.DataFrame(cleaned)
+        if df.duplicated(subset="date").any():
+            agg_map = {"debt_subject_to_limit": "sum"}
+            if "statutory_debt_limit" in df.columns:
+                agg_map["statutory_debt_limit"] = "max"
+            if "total_public_debt_outstanding" in df.columns:
+                agg_map["total_public_debt_outstanding"] = "max"
+            for col in ("open_today_bal", "open_month_bal", "open_fiscal_year_bal"):
+                if col in df.columns:
+                    agg_map[col] = "max"
+            df = df.groupby("date", as_index=False).agg(agg_map)
+
+        df = df.sort_values("date").reset_index(drop=True)
 
         save_debt_cache(df, csv_path, meta_path)
         return df

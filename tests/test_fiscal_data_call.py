@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from freezegun import freeze_time
 from pandas.testing import assert_frame_equal
+import requests
 
 # Support pytest discovery and direct file runs by ensuring repo root is importable.
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,18 +53,30 @@ def test_parse_debt_subject_to_limit_raises_on_bad_date():
         parse_debt_subject_to_limit(records)
 
 
+def test_parse_debt_subject_to_limit_supports_close_today_bal():
+    records = [
+        {"record_date": "2024-01-01", "close_today_bal": "10"},
+        {"record_date": "2024-01-01", "close_today_bal": "5"},
+    ]
+    cleaned = parse_debt_subject_to_limit(records)
+    assert cleaned == [
+        {"date": date(2024, 1, 1), "debt_subject_to_limit": 10.0},
+        {"date": date(2024, 1, 1), "debt_subject_to_limit": 5.0},
+    ]
+
+
 @freeze_time("2024-01-10 12:00:00")
 def test_get_debt_subject_to_limit_df_fetches_and_caches(monkeypatch, tmp_path):
     sample_records = [
         {
             "record_date": "2024-01-01",
-            "debt_subject_to_limit": "34000.0",
-            "statutory_debt_limit": "35000",
+            "debt_subject_to_limit_amt": "34000.0",
+            "statutory_debt_limit_amt": "35000",
         },
         {
             "record_date": "2024-01-02",
             "debt_subject_to_limit": "34100.0",
-            "total_public_debt_outstanding": "33900",
+            "total_public_debt_outstanding_amt": "33900",
         },
     ]
 
@@ -133,3 +146,42 @@ def test_get_debt_subject_to_limit_df_falls_back_to_stale_cache(monkeypatch, tmp
         result = get_debt_subject_to_limit_df(cache_ttl_seconds=1, cache_dir=tmp_path)
 
     assert_frame_equal(result.reset_index(drop=True), load_debt_cache_df(csv_path))
+
+
+def test_fetch_debt_subject_to_limit_handles_query_only_next(monkeypatch):
+    calls = {"count": 0}
+
+    class DummyResponse:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+        def raise_for_status(self):
+            if self.payload.get("status_code", 200) >= 400:
+                raise requests.HTTPError("bad")
+
+    def fake_get(url, params=None, headers=None):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            assert "page[number]" in params
+            return DummyResponse(
+                {
+                    "data": [{"record_date": "2024-01-01", "debt_subject_to_limit": "1"}],
+                    "links": {"next": "&page[number]=2&page[size]=1"},
+                }
+            )
+        assert params is None  # second call should follow link without params
+        assert url.endswith("debt_subject_to_limit?page[number]=2&page[size]=1")
+        return DummyResponse(
+            {
+                "data": [{"record_date": "2024-01-02", "close_today_bal": "2"}],
+                "links": {"next": None},
+            }
+        )
+
+    monkeypatch.setattr(fiscal_data_call.requests, "get", fake_get)
+
+    records = fiscal_data_call.fetch_debt_subject_to_limit()
+    assert len(records) == 2
