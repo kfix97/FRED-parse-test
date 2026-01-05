@@ -40,8 +40,9 @@ FRED API → raw JSON → validated observations → cleaned rows → pandas Dat
 - Cache writes are atomic and refuse empty/invalid DataFrames.
 - Metadata tracks series id, pull time, row count, and max observation date.
 
-## Plot preview
-![10-year treasury yield scatter](images/dgs10_yield.png)
+## Plot previews
+- 10-year treasury yield scatter: ![10-year treasury yield scatter](images/dgs10_yield.png)
+- Yield vs debt (trillions USD, dual axes): ![10-year yield vs debt subject to limit](images/yield_vs_debt.png)
 
 ## Next steps
 - Explore other FRED series IDs and compare plots.
